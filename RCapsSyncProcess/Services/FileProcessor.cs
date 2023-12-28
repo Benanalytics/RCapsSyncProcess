@@ -19,60 +19,78 @@ public class FileProcessor
     }
     public void ProcessFiles()
     {
-        var projectRoot = Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.FullName;
-        if (projectRoot != null)
+        Log.Information("Process Start ");
+        var projectRoot = Directory.GetParent(Directory.GetCurrentDirectory()).FullName;
+        try
         {
-            var folderPath = Path.Combine(projectRoot,ConstantVariable.OneDriveFile);
-            if (Directory.Exists(folderPath))
+            if (projectRoot != null)
             {
-                var filesInFolder = Directory.GetFiles(folderPath, "*.xlsx");
-                foreach (var file in filesInFolder)
+                var folderPath = Path.GetFullPath(Path.Combine(projectRoot, "..", "..", "..", "..", "..", "..", ConstantVariable.OneDriveFile));
+
+
+                if (Directory.Exists(folderPath))
                 {
-                    var fileName = Path.GetFileName(file).ToLower();
-                    if (fileName != null)
+                    var filesInFolder = Directory.GetFiles(folderPath, "*.xlsx");
+                    foreach (var file in filesInFolder)
                     {
-                        var fileExists = _context.UserFiles.FirstOrDefault(a => a.FileName == fileName);
-                        if (fileExists != null)
+                        var fileName = Path.GetFileName(file);
+                        if (fileName != null)
                         {
-                            Console.WriteLine($"{fileName} {ConstantVariable.FileExist}");
+                            var fileExists = _context.UserFiles.FirstOrDefault(a => a.FileName == fileName);
+                            if (fileExists != null)
+                            {
+                                Log.Information("FileExists {0}", ConstantVariable.FileExist);
+                                Console.WriteLine($"{fileName} {ConstantVariable.FileExist}");
+                            }
+                            else
+                            {
+                                var newUserFile = new UserFiles { FileName = fileName, AddedDate = DateTime.Now };
+                                _context.UserFiles.Add(newUserFile);
+                                _context.SaveChanges();
+                                if (fileName.Contains("Lending_Plan"))
+                                {
+                                    Log.Information("FileName {0}", fileName);
+                                    SaveLendingPlan(file, fileName);
+                                }
+                                else if (fileName.Contains("Lending_Approvals"))
+                                {
+                                    Log.Information("FileName {0}", fileName);
+                                    SaveLendingApproval(file, fileName);
+                                }
+                                else if (fileName.Contains("Portfolio"))
+                                {
+                                    Log.Information("FileName {0}", fileName);
+                                    SavePortfolioData(file, fileName);
+                                }
+                                else if (fileName.Contains("IOP_Pipeline"))
+                                {
+                                    Log.Information("FileName {0}", fileName);
+                                    SaveIOP_PipelineData(file, fileName);
+                                }
+                            }
                         }
                         else
                         {
-                            var newUserFile = new UserFiles { FileName = fileName, AddedDate = DateTime.Now };
-                            _context.UserFiles.Add(newUserFile);
-                            _context.SaveChanges();
-                            if (fileName == ConstantVariable.LendingPlan.ToLower())
-                            {
-                                SaveLendingPlan(file, fileName);
-                            }
-                            else if (fileName == ConstantVariable.LendingApprovals.ToLower())
-                            {
-                                SaveLendingApproval(file, fileName);
-                            }
-                            else if (fileName == ConstantVariable.Portfolio.ToLower())
-                            {
-                                SavePortfolioData(file, fileName);
-                            }
-                            if (fileName==ConstantVariable.IOP_Pipeline.ToLower())
-                            {
-                                SaveIOP_PipelineData(file, fileName);
-                            }
+                            Log.Error("InvalidFileName {0}", ConstantVariable.InvalidFileName);
+                            Console.WriteLine(ConstantVariable.InvalidFileName);
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine(ConstantVariable.InvalidFileName);
-                    }
+                }
+                else
+                {
+                    Log.Error("FolderPath {0} {1}", folderPath, ConstantVariable.DirectoryExists);
+                    Console.WriteLine($"{folderPath}{ConstantVariable.DirectoryExists}");
                 }
             }
             else
             {
-                Console.WriteLine($"{folderPath}{ConstantVariable.DirectoryExists }");
+                Log.Error("WrongDirectory {0}", ConstantVariable.WrongDirectory);
+                Console.WriteLine(ConstantVariable.WrongDirectory);
             }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine(ConstantVariable.WrongDirectory);
+            Log.Error("Process Error {0}", ex.StackTrace);
         }
     }
     public void SaveLendingPlan(string filePath, string fileName)
@@ -98,27 +116,28 @@ public class FileProcessor
                 try
                 {
                     plan.Id = Guid.NewGuid();
-                    var existingPlan =  _context.LendingPlans.AsNoTracking().FirstOrDefault(p => p.Id == plan.Id);
+                    var existingPlan = _context.LendingPlans.AsNoTracking().FirstOrDefault(p => p.Id == plan.Id);
                     if (existingPlan != null)
                     {
                         _context.Entry(existingPlan).CurrentValues.SetValues(plan);
                     }
                     else
                     {
-                         _context.LendingPlans.Add(plan);
+                        _context.LendingPlans.Add(plan);
                     }
                 }
                 catch (Exception ex)
                 {
                     failedRecordCount++;
-                    Log.Information($"{failedRecordCount} {ConstantVariable.FailedMessage}");
-                    Log.Information(ex.ToString());
+                    Log.Error($"{failedRecordCount} {ConstantVariable.FailedMessage}");
+                    Log.Error(ex.ToString());
                 }
             }
             _context.SaveChanges();
             _emailService.SendEmail(fileName, lendingPlans.Count, failedRecordCount);
             Log.Information($"File '{fileName}' {ConstantVariable.Success}");
             Log.Information($"{lendingPlans.Count}{ConstantVariable.Countmessage}");
+            Log.Information($"{ConstantVariable.EmailSuccess} '{fileName}'");
 
         }
         catch (Exception ex)
@@ -149,14 +168,14 @@ public class FileProcessor
                 try
                 {
                     approvals.Id = Guid.NewGuid();
-                    var existingPlan =  _context.LendingApprovals.AsNoTracking().FirstOrDefault(p => p.Id == approvals.Id);
+                    var existingPlan = _context.LendingApprovals.AsNoTracking().FirstOrDefault(p => p.Id == approvals.Id);
                     if (existingPlan != null)
                     {
                         _context.Entry(existingPlan).CurrentValues.SetValues(approvals);
                     }
                     else
                     {
-                         _context.LendingApprovals.Add(approvals);
+                        _context.LendingApprovals.Add(approvals);
                     }
 
                 }
@@ -164,13 +183,16 @@ public class FileProcessor
                 {
                     failedRecordCount++;
 
-                    Log.Information($"{failedRecordCount}{ConstantVariable.FailedMessage}");
-                    Log.Information(ex.ToString());
+                    Log.Error($"{failedRecordCount} {ConstantVariable.FailedMessage}");
+                    Log.Error(ex.ToString());
                 }
             }
-             _context.SaveChanges();
+            _context.SaveChanges();
             _emailService.SendEmail(fileName, lendingApprovals.Count, failedRecordCount);
+            Log.Information($"File '{fileName}'{ConstantVariable.Success} ");
             Log.Information($"{lendingApprovals.Count} {ConstantVariable.Countmessage}");
+            Log.Information($"{ConstantVariable.EmailSuccess} '{fileName}'");
+
 
         }
         catch (Exception ex)
@@ -203,7 +225,7 @@ public class FileProcessor
 
                     portfolio.Id = Guid.NewGuid();
 
-                    var existingPlan =  _context.Portfolios.AsNoTracking().FirstOrDefault(p => p.Id == portfolio.Id);
+                    var existingPlan = _context.Portfolios.AsNoTracking().FirstOrDefault(p => p.Id == portfolio.Id);
 
                     if (existingPlan != null)
                     {
@@ -211,22 +233,23 @@ public class FileProcessor
                     }
                     else
                     {
-                         _context.Portfolios.Add(portfolio);
+                        _context.Portfolios.Add(portfolio);
                     }
 
                 }
                 catch (Exception ex)
                 {
                     failedRecordCount++;
-                    Log.Information($"{failedRecordCount}{ConstantVariable.FailedMessage}.");
-                    Log.Information(ex.ToString());
+                    Log.Error($"{failedRecordCount}{ConstantVariable.FailedMessage}.");
+                    Log.Error(ex.ToString());
                 }
             }
 
-             _context.SaveChanges();
+            _context.SaveChanges();
             _emailService.SendEmail(fileName, portfolios.Count, failedRecordCount);
             Log.Information($"File '{fileName}'{ConstantVariable.Success} ");
             Log.Information($"{portfolios.Count} {ConstantVariable.Countmessage}");
+            Log.Information($"{ConstantVariable.EmailSuccess} '{fileName}'");
         }
         catch (Exception ex)
         {
@@ -259,7 +282,7 @@ public class FileProcessor
 
                     iOP_Pipeline.Id = Guid.NewGuid();
 
-                    var existingPlan = _context.iOP_Pipelines.AsNoTracking().FirstOrDefault(p => p.Id == iOP_Pipeline.Id);
+                    var existingPlan = _context.IOP_Pipelines.AsNoTracking().FirstOrDefault(p => p.Id == iOP_Pipeline.Id);
 
                     if (existingPlan != null)
                     {
@@ -267,15 +290,15 @@ public class FileProcessor
                     }
                     else
                     {
-                        _context.iOP_Pipelines.Add(iOP_Pipeline);
+                        _context.IOP_Pipelines.Add(iOP_Pipeline);
                     }
 
                 }
                 catch (Exception ex)
                 {
                     failedRecordCount++;
-                    Log.Information($"{failedRecordCount}{ConstantVariable.FailedMessage}.");
-                    Log.Information(ex.ToString());
+                    Log.Error($"{failedRecordCount}{ConstantVariable.FailedMessage}.");
+                    Log.Error(ex.ToString());
                 }
             }
 
@@ -283,6 +306,7 @@ public class FileProcessor
             _emailService.SendEmail(fileName, iOP_Pipelines.Count, failedRecordCount);
             Log.Information($"File '{fileName}'{ConstantVariable.Success} ");
             Log.Information($"{iOP_Pipelines.Count} {ConstantVariable.Countmessage}");
+            Log.Information($"{ConstantVariable.EmailSuccess} '{fileName}'");
         }
         catch (Exception ex)
         {
@@ -290,4 +314,3 @@ public class FileProcessor
         }
     }
 }
-

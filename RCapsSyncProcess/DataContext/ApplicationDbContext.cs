@@ -9,7 +9,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserFiles> UserFiles { get; set; }
     public DbSet<LendingApprovals> LendingApprovals { get; set; }
     public DbSet<Portfolio> Portfolios { get; set; }
-    public DbSet<IOP_Pipeline> iOP_Pipelines { get; set; }
+    public DbSet<IOP_Pipeline> IOP_Pipelines { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
